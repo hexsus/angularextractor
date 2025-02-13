@@ -19,10 +19,6 @@
   "contributes": {
     "commands": [
       {
-        "command": "angularextractor.helloWorld",
-        "title": "Hello World"
-      },
-      {
         "command": "angularextractor.extractComponent",
         "title": "Extract Angular Component"
       }

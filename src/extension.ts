@@ -1,15 +1,5 @@
 import * as vscode from "vscode";
 import * as path from "path";
-import * as fs from "fs";
-
-const template = `
-    <div class="flex flex-row justify-between items-center">
-      <span class="text-base text-secondary-900 font-medium">Direct</span>
-      <fc-icon-button (onClick)="createDirectChannel()">
-        <fc-icon icon="icon-add"></fc-icon>
-      </fc-icon-button>
-    </div>
-`;
 
 export function activate(context: vscode.ExtensionContext) {
   let extractComponent = vscode.commands.registerCommand(
@@ -40,10 +30,11 @@ export function activate(context: vscode.ExtensionContext) {
       }
 
       // Convert kebab-case to PascalCase for the class name
-      const className = componentName
-        .split("-")
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join("");
+      const className =
+        componentName
+          .split("-")
+          .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+          .join("") + "Component"; // Ensure "Component" suffix
 
       // Create component content
       const componentContent = `import { Component } from '@angular/core';
@@ -55,7 +46,7 @@ export function activate(context: vscode.ExtensionContext) {
 	\`,
 	standalone: true
 })
-export class ${className}Component {
+export class ${className} {
 }
 `;
 
@@ -72,17 +63,20 @@ export class ${className}Component {
         const writeData = Buffer.from(componentContent, "utf8");
         await vscode.workspace.fs.writeFile(uri, writeData);
 
+        // Delete the selected text and insert the new component selector
+        await editor.edit((editBuilder) => {
+          editBuilder.replace(selection, `<app-${componentName}></app-${componentName}>`);
+        });
+
+        // Update the original component to import and include the new component
+        await updateOriginalComponent(editor, componentName, className);
+
         // Open the new file
         const document = await vscode.workspace.openTextDocument(uri);
         await vscode.window.showTextDocument(document);
 
-        // Delete the selected text
-        await editor.edit(editBuilder => {
-          editBuilder.delete(selection);
-        });
-
         vscode.window.showInformationMessage(
-          `Component ${componentName} created successfully!`
+          `Component ${componentName} created and imported successfully!`
         );
       } catch (error) {
         vscode.window.showErrorMessage(`Failed to create component: ${error}`);
@@ -90,6 +84,72 @@ export class ${className}Component {
     }
   );
   context.subscriptions.push(extractComponent);
+}
+
+async function updateOriginalComponent(
+  editor: vscode.TextEditor,
+  componentName: string,
+  className: string
+) {
+  const document = editor.document;
+  const originalComponentContent = document.getText();
+
+  // 1. Add import statement
+  const importStatement = `import { ${className} } from './${componentName}.component';\n`;
+  const updatedContentWithImport = importStatement + originalComponentContent;
+
+  // 2. Find @Component decorator and add to imports array
+  const componentDecoratorRegex = /@Component\(\s*\{/;
+  const importsRegex = /imports\s*:\s*\[([^\]]*)\]/;
+  const match = originalComponentContent.match(componentDecoratorRegex);
+
+  if (match) {
+    let updatedComponentContent = updatedContentWithImport;
+    const decoratorStartIndex = match.index!;
+    const decoratorEndIndex =
+      originalComponentContent.indexOf("})", decoratorStartIndex) + 2;
+    let decoratorContent = originalComponentContent.slice(
+      decoratorStartIndex,
+      decoratorEndIndex
+    );
+
+    const importsMatch = decoratorContent.match(importsRegex);
+    if (importsMatch) {
+      // Imports array exists, add the new component
+      const existingImports = importsMatch[1].trim();
+      const newImportsArray = existingImports
+        ? `imports: [${className},${existingImports}]`
+        : `imports: [${className}]`;
+
+      decoratorContent = decoratorContent.replace(
+        importsRegex,
+        newImportsArray
+      );
+    } else {
+      // Imports array does not exist, add it
+      decoratorContent = decoratorContent.replace(
+        "}",
+        `,\n  imports: [${className}]\n}`
+      );
+    }
+    updatedComponentContent = updatedContentWithImport.replace(
+      originalComponentContent.slice(decoratorStartIndex, decoratorEndIndex),
+      decoratorContent
+    );
+
+    // Write the updated content back to the original component file
+    await editor.edit((editBuilder) => {
+      const fullRange = new vscode.Range(
+        document.positionAt(0),
+        document.positionAt(originalComponentContent.length)
+      );
+      editBuilder.replace(fullRange, updatedComponentContent);
+    });
+  } else {
+    vscode.window.showErrorMessage(
+      "Could not find @Component decorator in the original file."
+    );
+  }
 }
 
 export function deactivate() {}
