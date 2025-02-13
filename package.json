@@ -3,6 +3,11 @@
   "displayName": "AngularExtractor",
   "description": "angular template extractor",
   "version": "0.0.1",
+  "publisher": "hexman",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hexsus/angularextractor.git"
+  },
   "engines": {
     "vscode": "^1.97.0"
   },
