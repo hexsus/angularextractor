@@ -86,6 +86,14 @@ export class ${className} {
   context.subscriptions.push(extractComponent);
 }
 
+async function extractInnerComponentImports(){
+	// todo: extract inner component imports
+}
+
+async function addImportsAndOutputs(){
+	// todo: add imports and outputs to the component
+}
+
 async function updateOriginalComponent(
   editor: vscode.TextEditor,
   componentName: string,
